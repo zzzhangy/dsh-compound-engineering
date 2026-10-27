@@ -43,15 +43,38 @@ jobs:
             exit 1
           fi
 
+      # 本项目的 test:py 调的是 `python`，而 ubuntu runner 默认只有 python3。
+      - name: 确保 python 命令可用
+        run: |
+          if ! command -v python >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v python3)" /usr/local/bin/python
+          fi
+          python --version
+
       - name: 跑测试
         run: npm test
 
+      # 注意：不能用 `npm pack --dry-run 2>&1 | grep` 判断，
+      # prepack 钩子的日志本身就会打印 “清理了 N 个 __pycache__ 目录”，
+      # grep 会把日志当成命中而误报失败。这里解析 --json 的文件清单。
+      # 另外 prepack 的 stdout 会混进 JSON 之前，所以按行首的 `[` 定位数组起点。
       - name: 确认打包结果里没有 __pycache__
         run: |
-          if npm pack --dry-run 2>&1 | grep -qE '__pycache__|\.pyc'; then
-            echo "发布包里混入了 Python 缓存文件，检查 .npmignore" >&2
-            exit 1
-          fi
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const raw = require("fs").readFileSync("pack.json", "utf8");
+            const m = raw.match(/^\[$/m);
+            if (!m) { console.error("无法定位 pack 输出里的 JSON 数组"); process.exit(1); }
+            const files = JSON.parse(raw.slice(m.index))[0].files.map((f) => f.path);
+            const bad = files.filter((p) => /__pycache__|\.pyc$/.test(p));
+            console.log(`打包文件数: ${files.length}`);
+            if (bad.length) {
+              console.error("发布包混入 Python 缓存：\n" + bad.join("\n"));
+              process.exit(1);
+            }
+            console.log("未发现 Python 缓存文件");
+          '
+          rm -f pack.json
 
       # --provenance 会生成 attestation；OIDC 已由 setup-node 的 registry-url 启用。
       - name: 发布到 npm
