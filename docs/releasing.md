@@ -134,12 +134,13 @@ workflow 会跑这些，本地最好先过一遍，省一轮 CI：
 
 ```bash
 npm test                                # 期望 JS 38 pass / 0 fail、py 33 OK
-npm pack --dry-run                      # 看文件数和大小，期望 458 文件 / 1.8MB
+npm pack --dry-run                      # 看文件数和大小，期望 459 文件 / 1.8MB
 git status --short                      # 期望干净
 ```
 
 关于 `npm pack --dry-run` 的文件数：0.1.0 / 0.1.1 是 461（含 3 个 `.pyc`），
-加上 `prepack` 清理后是 458。**如果看到 461，说明 pyc 又混进来了。**
+`prepack` 清掉 pyc 后是 458，`files` 收录 `docs/` 后是 **459**（0.1.3 起）。
+**如果比上面多出 3 个，说明 pyc 又混进来了。**
 
 ---
 
@@ -292,6 +293,66 @@ git push origin main
 
 下次建仓库记得**不要勾 Add README**。
 
+### 4.11 测试在 Windows 全绿、Linux CI 必挂
+
+本项目是在 Windows 上开发的，而 CI 跑 ubuntu-latest。v0.1.2 的 CI 就挂在
+「跑测试」这一步，本地怎么都复现不出来。根因是**测试自身的前置条件**踩到了
+脚本里的 POSIX 校验，而 Windows 分支走的是 ACL/owner 检查，根本不看 mode 位。
+
+两处（都在 `test/test_windows_compat.py`）：
+
+```python
+# ❌ os.makedirs 用默认 umask 建成 0755，随后 ensure_private_dir 的
+#    validate_private_dir 要求 mode 恰好 0700，POSIX 分支直接抛 TrustFailure
+os.makedirs(result_dir)
+state.ensure_private_dir(result_dir)
+
+# ✅ 交给它自己创建，内部是 os.mkdir(path, 0o700)
+state.ensure_private_dir(result_dir)
+```
+
+```python
+# ❌ 默认 umask 022 → 0644，而 read_private_at 要求 0600
+with open(target, "wb") as handle:
+    handle.write(payload)
+
+# ✅ 显式指定 mode
+fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "wb") as handle:
+    handle.write(payload)
+```
+
+**教训**：任何涉及 `mode & 0o777`、`stat.S_IMODE`、`os.chmod`、`umask` 的测试，
+在 Windows 上都得不到真实结果（Windows 的 mode 是合成的，目录一律显示 0777）。
+写这类测试要么显式指定 mode，要么就假定它会跑在 Linux 上。
+
+另外两个当时排除掉的怀疑方向，记下来省得下次重查：
+
+- **路径大小写**：Linux 区分大小写，`References/x.md` 与 `references/x.md` 不等价。
+  实际用「按目录真实条目逐个解析」比对，缺失数 0。
+- **行尾**：`.gitattributes` 已是 `* text=auto eol=lf`，`git ls-files --eol` 显示
+  `i/lf w/lf`，检出到 Linux 不会混入 `\r`。
+
+### 4.12 CI 日志看不到时怎么定位
+
+私有仓库 + 细粒度 token 权限不足时，日志接口会直接拒绝：
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  https://api.github.com/repos/<owner>/<repo>/actions/jobs/<id>/logs
+# → {"message": "Must have admin rights to Repository.", "status": 403}
+```
+
+此时仍能看到**哪一步失败**（`GET /actions/runs` 里的 `conclusion`，配合 web 页面
+高亮的步骤名），只是拿不到 stdout。剩下的靠读代码推：
+
+```bash
+# 列出所有平台分支敏感的调用
+grep -n "IS_WINDOWS\|sys.platform\|process.platform" test/*.py test/*.mjs
+# 找出「先建目录/文件、后校验」的组合
+grep -n "makedirs\|os.mkdir\|open(.*\"wb\")" test/*.py
+```
+
 ---
 
 ## 5. 回滚与补救
@@ -355,7 +416,8 @@ diff -rq "$SRC/skills" "$DST/skills" && echo "一致"
 
 ## 7. 待办
 
-- [ ] Trusted Publisher 跑通一次，状态从 `Pending validation` 转正
+- [x] Trusted Publisher 跑通一次，状态从 `Pending validation` 转正（v0.1.3 首次全绿）
 - [ ] 把 `Publishing access` 改为 disallow bypass 2fa tokens
 - [ ] 确认已删除临时 bypass token（<https://www.npmjs.com/settings/zhiangzhang1/tokens>）
 - [ ] README 加 npm 徽章与 provenance 徽章
+- [ ] 考虑加一个 `test:linux` 的本地校验脚本，提前拦住 §4.11 那类问题
