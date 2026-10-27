@@ -520,7 +520,9 @@ git push origin v0.1.5
 
 ---
 
-## 9. 待办
+## 9. 已完成事项
+
+首版发布阶段的工作已全部收尾，留档备查：
 
 - [x] Trusted Publisher 跑通一次，状态从 `Pending validation` 转正（v0.1.3 首次全绿）
 - [x] 把 `Publishing access` 改为 disallow bypass 2fa tokens
@@ -528,5 +530,13 @@ git push origin v0.1.5
 - [x] 清除本地 `~/.npmrc` 里的发布凭据（CI 走 OIDC，本地不再需要）
 - [x] 新增 `CHANGELOG.md`，workflow 校验发版必有对应条目
 - [x] README 加 npm 版本/下载量/许可证徽章与 Actions 状态徽章
-- [ ] 考虑加一个 `test:linux` 的本地校验脚本，提前拦住 §4.11 那类问题
 - [x] 把 README 的安装段补上 `dsh plugin update` 的说明（中英文均已补）
+
+关于「本地 `test:linux` 校验脚本」：评估后决定不做。§4.11 那类 mode/umask 断言
+在 Windows 上拿不到真实结果（`os.stat().st_mode` 一律 0777），本地脚本永远是绿的，
+装个绿的等于假验证。真 Linux 环境由 CI 覆盖，每次打 tag 都会全量跑一遍；
+若将来需要本地复现，直接用容器：
+
+```bash
+docker run --rm -v "$PWD:/w" -w /w node:24 sh -c "corepack enable && npm test"
+```
