@@ -529,4 +529,4 @@ git push origin v0.1.5
 - [x] 新增 `CHANGELOG.md`，workflow 校验发版必有对应条目
 - [x] README 加 npm 版本/下载量/许可证徽章与 Actions 状态徽章
 - [ ] 考虑加一个 `test:linux` 的本地校验脚本，提前拦住 §4.11 那类问题
-- [ ] 把 README 的安装段补上 `dsh plugin update` 的说明（目前只写了初次安装）
+- [x] 把 README 的安装段补上 `dsh plugin update` 的说明（中英文均已补）
