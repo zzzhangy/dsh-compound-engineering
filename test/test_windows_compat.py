@@ -83,7 +83,9 @@ class DirectoryHandleTest(unittest.TestCase):
 
     def _make_unit(self, root):
         result_dir = os.path.join(root, "result")
-        os.makedirs(result_dir)
+        # 交给 ensure_private_dir 自己创建：POSIX 分支用 mkdir(path, 0o700)，
+        # 权限就是 0700；若先 os.makedirs 建成 0755 再调它，
+        # validate_private_dir 的 mode 校验会抛 TrustFailure（Linux CI 踩过）。
         state.ensure_private_dir(result_dir)
         identity = jobs.private_result_dir_identity(result_dir)
         return {
@@ -112,7 +114,11 @@ class DirectoryHandleTest(unittest.TestCase):
             unit, result_dir = self._make_unit(root)
             payload = b'{"ok": true}'
             target = os.path.join(result_dir, "implementation-result.json")
-            with open(target, "wb") as handle:
+            # 必须建成 0600：read_private_at/stat_private_at 在 POSIX 分支
+            # 会用 is_private() 校验 mode，而默认 umask 022 让 open() 得到
+            # 0644，校验会抛 TrustFailure（Linux CI 踩过）。
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as handle:
                 handle.write(payload)
 
             handle, resolved = jobs.open_recorded_result_dir(unit)
