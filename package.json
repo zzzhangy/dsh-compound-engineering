@@ -1,6 +1,6 @@
 {
   "name": "dsh-compound-engineering",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Every 的 compound-engineering 方法论技能包 —— brainstorm → plan → work → review → compound，让每一次改动都让下一次更容易。DeepSeek Harness 移植版。",
   "type": "module",
   "main": "lib/index.js",
