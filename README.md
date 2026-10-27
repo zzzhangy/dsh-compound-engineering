@@ -1,5 +1,10 @@
 # dsh-compound-engineering
 
+[![npm version](https://img.shields.io/npm/v/dsh-compound-engineering)](https://www.npmjs.com/package/dsh-compound-engineering)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-compound-engineering)](https://www.npmjs.com/package/dsh-compound-engineering)
+[![license](https://img.shields.io/npm/l/dsh-compound-engineering)](LICENSE)
+[![publish](https://github.com/zzzhangy/dsh-compound-engineering/actions/workflows/publish.yml/badge.svg)](https://github.com/zzzhangy/dsh-compound-engineering/actions/workflows/publish.yml)
+
 English | [简体中文](README.zh.md)
 
 [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) methodology, packaged as a skill bundle for DeepSeek Harness.

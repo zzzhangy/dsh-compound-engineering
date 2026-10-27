@@ -9,10 +9,10 @@
 cd /e/project/dsh-compound-engineering
 
 npm version patch --no-git-tag-version   # 0.1.2 → 0.1.3
-git commit -am "chore: 0.1.3"
-git tag v0.1.3
+git commit -am "chore: 0.1.5"
+git tag v0.1.5
 git push origin main
-git push origin v0.1.3                   # 关键：tag 必须单独推
+git push origin v0.1.5                  # 关键：tag 必须单独推
 ```
 
 推完去看 <https://github.com/zzzhangy/dsh-compound-engineering/actions>，
@@ -527,6 +527,6 @@ git push origin v0.1.5
 - [x] 确认已删除临时 bypass token（<https://www.npmjs.com/settings/zhiangzhang1/tokens>）
 - [x] 清除本地 `~/.npmrc` 里的发布凭据（CI 走 OIDC，本地不再需要）
 - [x] 新增 `CHANGELOG.md`，workflow 校验发版必有对应条目
-- [ ] README 加 npm 徽章与 provenance 徽章
+- [x] README 加 npm 版本/下载量/许可证徽章与 Actions 状态徽章
 - [ ] 考虑加一个 `test:linux` 的本地校验脚本，提前拦住 §4.11 那类问题
 - [ ] 把 README 的安装段补上 `dsh plugin update` 的说明（目前只写了初次安装）
