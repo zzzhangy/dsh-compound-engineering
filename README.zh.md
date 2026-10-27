@@ -103,11 +103,12 @@ dsh plugin --profile web add dsh-compound-engineering
 
 ```bash
 npm test              # JS 单元 + 集成测试，随后跑 Python 测试
-npm run test:smoke    # 三层冒烟：provider / registry / 插件生命周期
 npm run test:py       # 只跑 Python 测试（会话读取器、Windows 兼容）
 ```
 
-集成测试需要能找到 DSH 运行时。默认从包名 import，失败则扫描 `~/.dsh/runtime/versions/*`；也可以用 `DSH_RUNTIME` 指过去。
+集成测试需要能找到 DSH 运行时。默认从包名 import，失败则扫描 `~/.dsh/runtime/versions/*`；也可以用 `DSH_RUNTIME` 指过去。找不到运行时时整组跳过，不会报失败。
+
+发版由 tag 驱动：推送 `v*` tag 会触发 `.github/workflows/publish.yml`，走 npm 的 OIDC trusted publisher 发布（无需本地 OTP、不在仓库里存 token）。完整流程与已踩过的坑见 [docs/releasing.md](docs/releasing.md)。
 
 改上游技能后，重新跑这两个幂等补丁脚本：
 

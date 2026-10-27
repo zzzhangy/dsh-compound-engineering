@@ -103,11 +103,12 @@ Upstream targets 14 hosts including Claude Code. The port does this:
 
 ```bash
 npm test                          # JS unit + integration, then the Python suites
-npm run test:smoke                # three layers: provider / registry / plugin lifecycle
 npm run test:py                   # Python suites only (session reader, Windows compat)
 ```
 
-Integration tests need to find a DSH runtime: they import by package name first, then scan `~/.dsh/runtime/versions/*`. Point `DSH_RUNTIME` at it to override.
+Integration tests need to find a DSH runtime: they import by package name first, then scan `~/.dsh/runtime/versions/*`. Point `DSH_RUNTIME` at it to override. When no runtime is found the whole group is skipped rather than failed.
+
+Releasing is tag-driven: pushing a `v*` tag runs `.github/workflows/publish.yml`, which publishes through npm's OIDC trusted publisher (no local OTP, no stored token). See [docs/releasing.md](docs/releasing.md) for the full procedure and the failure modes already hit.
 
 After pulling in upstream changes, re-run the two idempotent patch scripts:
 

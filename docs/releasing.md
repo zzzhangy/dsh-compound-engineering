@@ -1,0 +1,361 @@
+# 发版与推送流程
+
+> 本文记录 `dsh-compound-engineering` 的完整发布链路。踩过的坑都写进来了，
+> 遇到异常先来这里对照，不要凭直觉重试。
+
+## 0. 一页速查
+
+```bash
+cd /e/project/dsh-compound-engineering
+
+npm version patch --no-git-tag-version   # 0.1.2 → 0.1.3
+git commit -am "chore: 0.1.3"
+git tag v0.1.3
+git push origin main
+git push origin v0.1.3                   # 关键：tag 必须单独推
+```
+
+推完去看 <https://github.com/zzzhangy/dsh-compound-engineering/actions>，
+`publish` workflow 跑绿即发版完成。
+
+**`git push origin main` 不会带上 tag。** 忘了这一条，Actions 会显示
+“This workflow has no runs yet”，很多人误以为 workflow 没配好。
+
+---
+
+## 1. 前置条件（只需配一次）
+
+### 1.1 npm 侧：登记 Trusted Publisher
+
+<https://www.npmjs.com/package/dsh-compound-engineering/access> → **Trusted Publisher**
+
+| 字段 | 值 |
+| --- | --- |
+| Publisher | GitHub Actions |
+| Organization or user | `zzzhangy` |
+| Repository | `dsh-compound-engineering` |
+| Workflow filename | `publish.yml`（只填文件名，不要带 `.github/workflows/` 路径） |
+| Environment name | 留空 |
+
+Allowed actions 两个都勾：**Allow npm publish**、**Allow npm dist-tag**。
+
+配好后状态是 `Pending validation` —— **必须成功发布一次才会转正**。
+npm 给的期限是配置后 7 天内。
+
+### 1.2 npm 侧：收紧发布策略
+
+同一个 Settings 页面的 **Publishing access**，选：
+
+> Require two-factor authentication **and disallow bypass 2fa tokens**
+
+理由见 §4.1。改完点 **Update Package Settings**。
+
+### 1.3 仓库侧：workflow 文件存在
+
+`.github/workflows/publish.yml` 必须在**默认分支**上，且文件名与 npm 后台
+填的完全一致（`publish.yml`）。OIDC 校验失败时 npm 的报错很模糊，通常是这里错了。
+
+---
+
+## 2. 发版步骤详解
+
+### 2.1 升版本号
+
+```bash
+npm version patch --no-git-tag-version
+```
+
+用 `--no-git-tag-version` 是因为我们**想自己控制 tag 的创建时机和注解**。
+`patch` / `minor` / `major` 按改动性质选。
+
+### 2.2 提交
+
+```bash
+git commit -am "chore: 0.1.3"
+```
+
+### 2.3 打 tag
+
+```bash
+git tag v0.1.3
+```
+
+tag 名必须与 `package.json` 的 version 严格对应（`v` + 版本号）。
+workflow 第一步就会校验，不一致直接失败：
+
+```
+tag v0.1.3 与 package.json 的 0.1.2 不一致，中止发布
+```
+
+想带说明可以用注解 tag（此时 `--follow-tags` 才会认）：
+
+```bash
+git tag -a v0.1.3 -m "0.1.3"
+```
+
+### 2.4 推送分支和 tag
+
+```bash
+git push origin main
+git push origin v0.1.3
+```
+
+**不要只推 main。** 触发条件是 `on: push: tags: ['v*']`，分支推送不触发。
+
+`git push origin main --follow-tags` 看起来更省事，但 **`--follow-tags` 只推注解 tag**，
+轻量 tag（`git tag v0.1.3` 这种）会被静默跳过。分两条命令最稳。
+
+### 2.5 观察运行
+
+<https://github.com/zzzhangy/dsh-compound-engineering/actions>
+
+成功会看到 7 个步骤全绿：
+
+```
+✓ checkout
+✓ setup-node
+✓ 校验 tag 与 package.json 版本一致
+✓ 确保 python 命令可用
+✓ 跑测试
+✓ 确认打包结果里没有 __pycache__
+✓ 发布到 npm
+```
+
+发布完成后 npm 页面上：
+
+- Trusted Publisher 的黄色 `Pending validation` 变成绿勾
+- 包名旁出现 **Provenance** 徽章（证明包来自该仓库的该 commit）
+
+---
+
+## 3. 发布前自检
+
+workflow 会跑这些，本地最好先过一遍，省一轮 CI：
+
+```bash
+npm test                                # 期望 JS 38 pass / 0 fail、py 33 OK
+npm pack --dry-run                      # 看文件数和大小，期望 458 文件 / 1.8MB
+git status --short                      # 期望干净
+```
+
+关于 `npm pack --dry-run` 的文件数：0.1.0 / 0.1.1 是 461（含 3 个 `.pyc`），
+加上 `prepack` 清理后是 458。**如果看到 461，说明 pyc 又混进来了。**
+
+---
+
+## 4. 踩过的坑
+
+### 4.1 bypass-2FA token 会强制走 staged publishing
+
+**症状**（本项目首发时全套踩中）：
+
+```
+npm publish                    → + dsh-compound-engineering@0.1.0   （显示成功）
+curl registry.npmjs.org/...    → dist-tags: {"latest":"0.0.0-stage"} （只有占位包）
+npm publish                    → 409 Cannot publish over previously staged version "0.1.0"
+npm stage list                 → No staged versions.（空的）
+npm stage publish              → 409 Cannot stage previously published version "0.1.0"
+```
+
+服务端把版本记成“已暂存/已发布”，但 register 查不到、stage 列表为空 —— 版本进了黑洞。
+
+**根因**：npm 11.x 对 bypass-2FA token 强制暂存发布，会先建 `0.0.0-stage`
+占位包再异步处理。这个流程在“首次发布 + 占位包”组合下有 bug。
+
+**后果**：`0.1.0` 这个版本号被永久占用，无法重发，只能升到 `0.1.1`。
+
+**解决**：不要用 bypass token 首发新包。改用 §4.2 的 OIDC 路线，或普通 token。
+
+### 4.2 普通 token 首发要浏览器授权（EOTP）
+
+```
+npm error code EOTP
+npm error This operation requires a one-time password.
+npm error Open this URL in your browser to authenticate:
+npm error   https://www.npmjs.com/auth/cli/<uuid>
+```
+
+终端里那条 URL 在日志中被 `***` 遮蔽，**只出现在终端输出**。按 Enter 让 npm
+打开浏览器，点 Authorize 后发布会自动继续。这是绕过 staged publishing 的方式，
+但每次发版都要人工点一下 —— 所以才改用 OIDC。
+
+### 4.3 发布有 5 分钟传播延迟
+
+发布成功后立刻 `curl` 查 registry 可能查不到，tarball 返回 404。
+**这是正常的**，等 5 分钟再查。当时我们误判成发布失败，白折腾了很久。
+
+### 4.4 国内镜像导致安装 404
+
+`~/.npmrc` 里 `registry` 指向淘宝镜像时，npm 的 `replace-registry-host`
+（默认值 `npmjs`）会把官方 tarball 地址也改写成镜像域名。镜像尚未同步新版本时：
+
+```
+404 https://cdn.npmmirror.com/packages/dsh-compound-engineering/0.1.1/...tgz
+```
+
+包本身没问题。装新包时显式指定：
+
+```bash
+npm i dsh-compound-engineering --registry=https://registry.npmjs.org --replace-registry-host=never
+```
+
+### 4.5 `__pycache__` 混进发布包
+
+**症状**：tarball 里出现 `skills/**/__pycache__/*.pyc`。
+
+**根因**：`package.json` 的 `files` 白名单写了整个 `skills` 目录，而 npm 的规则是
+—— **目录一旦被 `files` 收录，其中的忽略规则（`.npmignore` / `.gitignore`）全部失效**。
+实测在根目录写 `**/__pycache__/` 也拦不住。
+
+**解决**：`prepack` 钩子在打包前从磁盘删除（`scripts/clean-pycache.mjs`）：
+
+```json
+"prepack": "node scripts/clean-pycache.mjs"
+```
+
+### 4.6 workflow 里用 `grep` 查 pyc 会必然误报
+
+`prepack` 的日志本身就会打印 `prepack: 清理了 3 个 __pycache__ 目录`，
+所以下面这种写法**每次都会失败**：
+
+```bash
+# ❌ 错误：日志命中
+if npm pack --dry-run 2>&1 | grep -qE '__pycache__|\.pyc'; then exit 1; fi
+```
+
+正确做法是解析 `--json` 的文件清单。另外 `prepack` 的 stdout 会混在 JSON 之前，
+必须按行首的 `[` 定位数组起点：
+
+```bash
+npm pack --dry-run --json > pack.json
+node -e '
+  const raw = require("fs").readFileSync("pack.json", "utf8");
+  const m = raw.match(/^\[$/m);
+  ...'
+```
+
+### 4.7 ubuntu runner 没有 `python` 命令
+
+`npm run test:py` 调的是 `python`，而 ubuntu-latest 默认只有 `python3`。
+workflow 里补了一步软链（见 `.github/workflows/publish.yml`）。
+
+### 4.8 tag 推了但 Actions 没跑
+
+看远端到底有没有 tag：
+
+```bash
+git ls-remote origin main refs/tags/v0.1.3
+```
+
+如果只有 `main` 没有 `refs/tags/...`，就是 tag 没推上去（最常见的原因）。
+再确认 tag 名匹配 `v*` 通配符。
+
+### 4.9 Windows 上 git push 挂起
+
+**症状**：`git push` 长时间无输出，120s/150s 超时，`exit code 124`。
+
+**根因**：卡在 `git credential-helper-selector get`（Windows Git 的凭据选择器弹窗），
+在无头/自动化环境里会一直阻塞。用 `GIT_TRACE=1 git push` 可以看到卡点。
+
+**解决**：在真实终端里手动推一次，弹窗里选 GitHub 账号即可。之后的推送
+会用缓存的凭据，不再弹窗。
+
+排查时可以排除的因素（本次都验证过不是它们）：
+
+```bash
+git config --get http.proxy        # 空
+env | grep -i proxy                # 有 127.0.0.1:7890，但绕过代理照样挂起
+git config --get credential.helper # helper-selector ← 就是它
+GIT_TERMINAL_PROMPT=0 git ls-remote origin main   # 1.2s 返回，说明网络正常
+```
+
+`ls-remote` 秒回而 `push` 挂起，说明卡在认证而非网络。
+
+### 4.10 GitHub 仓库建的时候勾了 Add README
+
+远端会有一个 `Initial commit`，与本地历史无共同祖先，push 直接被拒：
+
+```
+! [rejected] main -> main (fetch first)
+```
+
+解决：
+
+```bash
+git fetch origin
+git rebase origin/main          # README.md 会有 add/add 冲突
+# 解决冲突：保留本地完整 README，删掉 GitHub 生成的单行简介
+git add README.md
+GIT_EDITOR=true git rebase --continue
+git push origin main
+```
+
+下次建仓库记得**不要勾 Add README**。
+
+---
+
+## 5. 回滚与补救
+
+### 5.1 想撤销一次发布
+
+npm 不允许删除 24 小时内的版本，也不建议 `unpublish`。正确做法是**发布修复版本**，
+然后把 `latest` 指回稳定版：
+
+```bash
+npm dist-tag add dsh-compound-engineering@0.1.2 latest
+```
+
+这也是为什么 Trusted Publisher 里要勾 **Allow npm dist-tag**。
+
+### 5.2 把包标记为废弃
+
+```bash
+npm deprecate dsh-compound-engineering@0.1.3 "此版本有已知问题，请用 0.1.4"
+```
+
+用户安装时会看到警告，但已装的不会坏。
+
+### 5.3 版本号被黑洞占用
+
+如 §4.1 的 `0.1.0`：registry 查不到，但服务端记着“已发布”，无法重发。
+只能升版本号。要彻底清理可以去 <https://github.com/npm/feedback> 提 issue。
+
+---
+
+## 6. 本地开发与 profile 同步
+
+开发期把本地目录装进 DSH profile 调试：
+
+```bash
+DSH=C:/Users/zhiAngZhang/.dsh/runtime/node_modules/.bin/dsh
+"$DSH" plugin --profile web add "file:E:/project/dsh-compound-engineering"
+```
+
+⚠️ `file:` 安装走 pnpm directory 依赖，`node_modules/` 里是**实体拷贝不是软链**，
+且 pnpm 把内容记在 lockfile 里 —— **改完源码后 `pnpm install` / `plugin update`
+都不会刷新那份拷贝**，你会一直跑到旧代码。
+
+刷新办法：删掉再装。
+
+```bash
+"$DSH" plugin --profile web remove dsh-compound-engineering
+"$DSH" plugin --profile web add "file:E:/project/dsh-compound-engineering"
+```
+
+或者直接覆盖拷贝后比对：
+
+```bash
+SRC=E:/project/dsh-compound-engineering
+DST=C:/Users/zhiAngZhang/.dsh/profiles/web/node_modules/dsh-compound-engineering
+cp -rf "$SRC/skills" "$SRC/lib" "$SRC/package.json" "$DST/"
+diff -rq "$SRC/skills" "$DST/skills" && echo "一致"
+```
+
+---
+
+## 7. 待办
+
+- [ ] Trusted Publisher 跑通一次，状态从 `Pending validation` 转正
+- [ ] 把 `Publishing access` 改为 disallow bypass 2fa tokens
+- [ ] 确认已删除临时 bypass token（<https://www.npmjs.com/settings/zhiangzhang1/tokens>）
+- [ ] README 加 npm 徽章与 provenance 徽章
