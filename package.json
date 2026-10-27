@@ -20,6 +20,15 @@
     "README.zh.md"
   ],
   "license": "MIT",
+  "author": "zzzhangy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zzzhangy/dsh-compound-engineering.git"
+  },
+  "homepage": "https://github.com/zzzhangy/dsh-compound-engineering#readme",
+  "bugs": {
+    "url": "https://github.com/zzzhangy/dsh-compound-engineering/issues"
+  },
   "keywords": [
     "deepseek",
     "harness",
