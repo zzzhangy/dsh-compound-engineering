@@ -1,0 +1,58 @@
+name: publish
+
+# 打 tag 即发版（例如 `git tag v0.1.2 && git push origin v0.1.2`）。
+#
+# 为什么走这条路而不是在本地 `npm publish`：
+#   1. 本地发布要浏览器 OTP 授权，每次都得人工点一下；
+#   2. npm 正在淘汰 bypass-2FA token 的直接发布能力（2027 年 1 月移除），
+#      而 bypass token 又会强制走 staged publishing，首发新包时会产生
+#      0.0.0-stage 占位包并卡住（本项目踩过）；
+#   3. OIDC 发布自带 provenance 证明，且不需要在仓库里存任何长期 token。
+#
+# 首次使用前，需要去 npmjs.com 把仓库登记为 Trusted Publisher：
+#   https://www.npmjs.com/package/dsh-compound-engineering/access
+#   → Trusted Publishing → 填 GitHub 用户/仓库名、workflow 文件名 publish.yml
+# 注意 workflow 文件名必须与 npm 后台填写的一致，否则 OIDC 校验会失败。
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC 换 npm 凭据必需
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24 自带 npm 11.x，满足 trusted publishing 的版本要求。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: 校验 tag 与 package.json 版本一致
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $GITHUB_REF_NAME 与 package.json 的 $pkg 不一致，中止发布" >&2
+            exit 1
+          fi
+
+      - name: 跑测试
+        run: npm test
+
+      - name: 确认打包结果里没有 __pycache__
+        run: |
+          if npm pack --dry-run 2>&1 | grep -qE '__pycache__|\.pyc'; then
+            echo "发布包里混入了 Python 缓存文件，检查 .npmignore" >&2
+            exit 1
+          fi
+
+      # --provenance 会生成 attestation；OIDC 已由 setup-node 的 registry-url 启用。
+      - name: 发布到 npm
+        run: npm publish --provenance --access public

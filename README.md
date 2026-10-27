@@ -39,7 +39,7 @@ Or do it by hand: add the dependency to the profile's `package.json`, then list 
 
 ```jsonc
 {
-  "dependencies": { "dsh-compound-engineering": "^0.1.0" },
+  "dependencies": { "dsh-compound-engineering": "^0.1.1" },
   "dsh": { "profile": { "bundles": ["dsh-compound-engineering"] } }
 }
 ```

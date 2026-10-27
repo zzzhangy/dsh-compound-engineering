@@ -39,7 +39,7 @@ dsh plugin --profile web add dsh-compound-engineering
 
 ```jsonc
 {
-  "dependencies": { "dsh-compound-engineering": "^0.1.0" },
+  "dependencies": { "dsh-compound-engineering": "^0.1.1" },
   "dsh": { "profile": { "bundles": ["dsh-compound-engineering"] } }
 }
 ```
