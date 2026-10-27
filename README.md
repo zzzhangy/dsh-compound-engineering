@@ -39,12 +39,24 @@ Or do it by hand: add the dependency to the profile's `package.json`, then list 
 
 ```jsonc
 {
-  "dependencies": { "dsh-compound-engineering": "^0.1.1" },
+  "dependencies": { "dsh-compound-engineering": "^0.1.4" },
   "dsh": { "profile": { "bundles": ["dsh-compound-engineering"] } }
 }
 ```
 
 Restart DSH. Type `/ce-plan` in a session and the skills are there.
+
+### Updating
+
+```bash
+dsh plugin --profile web update dsh-compound-engineering
+```
+
+Restart DSH afterwards — the skill catalog is injected at session start, so a running session keeps showing the old skill descriptions.
+
+`add` without a version records a caret range (`^0.1.4`), which accepts `0.1.5`, `0.1.9`, but **not** `0.2.0`. Minor and major releases need an explicit `add dsh-compound-engineering` again. To pin a version, install it by number: `dsh plugin --profile web add dsh-compound-engineering@0.1.4`.
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Skills you will actually reach for
 

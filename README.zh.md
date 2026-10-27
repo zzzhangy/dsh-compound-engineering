@@ -39,12 +39,24 @@ dsh plugin --profile web add dsh-compound-engineering
 
 ```jsonc
 {
-  "dependencies": { "dsh-compound-engineering": "^0.1.1" },
+  "dependencies": { "dsh-compound-engineering": "^0.1.4" },
   "dsh": { "profile": { "bundles": ["dsh-compound-engineering"] } }
 }
 ```
 
 装好后重启 DSH。会话里敲 `/ce-plan` 就能看到技能。
+
+### 更新
+
+```bash
+dsh plugin --profile web update dsh-compound-engineering
+```
+
+更新后同样要重启 DSH —— 技能目录是会话启动时注入的，不重启的话当前会话看到的还是旧技能描述。
+
+不指定版本安装时记下的是 caret 范围（`^0.1.4`），能接受 `0.1.5`、`0.1.9`，但**接不住 `0.2.0`**。跨 minor 或 major 需要再跑一次 `add dsh-compound-engineering`。想锁死版本就带版本号装：`dsh plugin --profile web add dsh-compound-engineering@0.1.4`。
+
+每个版本改了什么见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 常用技能
 

@@ -523,7 +523,10 @@ git push origin v0.1.5
 ## 9. 待办
 
 - [x] Trusted Publisher 跑通一次，状态从 `Pending validation` 转正（v0.1.3 首次全绿）
-- [ ] 把 `Publishing access` 改为 disallow bypass 2fa tokens
-- [ ] 确认已删除临时 bypass token（<https://www.npmjs.com/settings/zhiangzhang1/tokens>）
+- [x] 把 `Publishing access` 改为 disallow bypass 2fa tokens
+- [x] 确认已删除临时 bypass token（<https://www.npmjs.com/settings/zhiangzhang1/tokens>）
+- [x] 清除本地 `~/.npmrc` 里的发布凭据（CI 走 OIDC，本地不再需要）
+- [x] 新增 `CHANGELOG.md`，workflow 校验发版必有对应条目
 - [ ] README 加 npm 徽章与 provenance 徽章
 - [ ] 考虑加一个 `test:linux` 的本地校验脚本，提前拦住 §4.11 那类问题
+- [ ] 把 README 的安装段补上 `dsh plugin update` 的说明（目前只写了初次安装）
