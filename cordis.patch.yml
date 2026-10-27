@@ -1,0 +1,6 @@
+# dsh-compound-engineering bundle patch: inserts its plugin row into a profile's
+# layer stack. The single row mounts the skill provider; the 36 skills ship
+# inside this package and need no user configuration.
+- insert:
+    - id: compound-engineering
+      name: 'dsh-compound-engineering'

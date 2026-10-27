@@ -1,0 +1,55 @@
+{
+  "name": "dsh-compound-engineering",
+  "version": "0.1.0",
+  "description": "Every 的 compound-engineering 方法论技能包 —— brainstorm → plan → work → review → compound，让每一次改动都让下一次更容易。DeepSeek Harness 移植版。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "skills",
+    "cordis.patch.yml",
+    "LICENSE",
+    "README.md",
+    "README.zh.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "compound-engineering",
+    "skills",
+    "workflow",
+    "brainstorm",
+    "code-review"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.1-rc.2"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.1-rc.2"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\" && npm run test:py",
+    "test:py": "python -m unittest discover -s test -p \"test_*.py\""
+  }
+}
