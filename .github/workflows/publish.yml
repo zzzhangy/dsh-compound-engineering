@@ -43,6 +43,27 @@ jobs:
             exit 1
           fi
 
+      # CHANGELOG 是用户判断「该不该升级」的唯一依据，缺失就等于没写发版说明。
+      # 要求本版本有标题形如 `## [0.1.5]`（方括号可省）且该行不含「未发布」。
+      - name: 校验 CHANGELOG 有本版本条目
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "缺少 CHANGELOG.md，中止发布" >&2
+            exit 1
+          fi
+          line="$(grep -nE "^## \[?${version//./\\.}\]?" CHANGELOG.md | head -1)"
+          if [ -z "$line" ]; then
+            echo "CHANGELOG.md 里找不到 ## [${version}] 这一节，中止发布。" >&2
+            echo "请在 CHANGELOG.md 顶部为 ${version} 补一节改动说明。" >&2
+            exit 1
+          fi
+          if printf '%s' "$line" | grep -q '未发布\|Unreleased'; then
+            echo "CHANGELOG.md 的 ${version} 一节仍标着「未发布」，请改为实际日期。" >&2
+            exit 1
+          fi
+          echo "CHANGELOG 校验通过：${line}"
+
       # 本项目的 test:py 调的是 `python`，而 ubuntu runner 默认只有 python3。
       - name: 确保 python 命令可用
         run: |

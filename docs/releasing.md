@@ -414,7 +414,113 @@ diff -rq "$SRC/skills" "$DST/skills" && echo "一致"
 
 ---
 
-## 7. 待办
+## 7. 更新：用户怎么拿到新版
+
+发布链路和安装链路是两条独立的线 —— 你把新版推上 npm，**已经装了的用户不会自动升级**，
+必须显式更新。这一节写清两边各自要做什么。
+
+### 7.1 用户侧：三种更新方式
+
+```bash
+# 升到最新（跟随 package.json 里记的版本范围）
+dsh plugin update dsh-compound-engineering
+
+# 装或升到指定版本（锁死，不受后续发版影响）
+dsh plugin add dsh-compound-engineering@0.1.5
+
+# 全新安装
+dsh plugin add dsh-compound-engineering
+```
+
+`update` 之后**必须重启 DSH 会话**才生效 —— 技能目录是启动时向注册表注入的，
+不重启的话模型看到的还是旧技能描述。
+
+### 7.2 版本范围怎么写
+
+`dsh plugin add` 不指定版本时，profile 的 `package.json` 里记下的是带 `^` 的范围，
+例如 `"dsh-compound-engineering": "^0.1.4"`：
+
+- `^0.1.4` 表示 `<0.2.0`，即自动接受 `0.1.5`、`0.1.9`
+- 跨 minor 的大改动（`0.2.0` 起）需要用户自己再跑一次 `add dsh-compound-engineering`
+
+这是语义化版本的预期行为：**minor 及以上不自动跟上**，用户得知道自己跨版本了。
+所以升 minor 时务必在 CHANGELOG 里写清「需要用户做什么」。
+
+### 7.3 本项目 profile 的特殊情况
+
+开发机上 `C:/Users/zhiAngZhang/.dsh/profiles/web/package.json` 装的是本地目录：
+
+```json
+"dsh-compound-engineering": "file:E:/project/dsh-compound-engineering"
+```
+
+`file:` 依赖**永远不会跟随 npm 上的新版**，改完源码直接 `remove` + `add` 刷新（见 §6）。
+如果想让本机也跟随 npm 发布版（模拟真实用户），改用：
+
+```bash
+DSH=C:/Users/zhiAngZhang/.dsh/runtime/node_modules/.bin/dsh
+"$DSH" plugin --profile web remove dsh-compound-engineering
+"$DSH" plugin --profile web add dsh-compound-engineering
+```
+
+换过去之后，本地源码的改动就不再进 profile，必须发版才生效 —— 调试期不要这么做。
+
+---
+
+## 8. 版本语义与 CHANGELOG
+
+### 8.1 版本号怎么选
+
+| 变更类型 | 版本位 | 例子 |
+| --- | --- | --- |
+| 修 bug、改文档、补测试，技能行为不变 | **patch** | `0.1.4 → 0.1.5` |
+| 新增技能、调整已有技能行为、新增配置项 | **minor** | `0.1.5 → 0.2.0` |
+| 删技能、改变技能调用契约、提高 DSH 最低版本 | **major** | `0.2.0 → 1.0.0` |
+
+拿不准的时候往大里挑 —— 用户被 patch 版本悄悄改了行为，比多升一个 minor 更难受。
+
+### 8.2 CHANGELOG.md 是发版硬门槛
+
+`CHANGELOG.md` 放在仓库根目录，每次发版前**必须**在顶部加一节：
+
+```markdown
+## [0.1.5] - 2026-10-27
+
+### 修复
+
+- 一句话说清改了什么，以及用户需要做什么（如果需要）
+```
+
+workflow 里的「校验 CHANGELOG 有本版本条目」这一步会拦截三种情况：
+
+1. 没有 `CHANGELOG.md`
+2. 找不到 `## [0.1.5]` 这样标题匹配当前 `package.json` 版本
+3. 该行仍写着「未发布」
+
+所以 `npm version patch` 之后完整顺序是：
+
+```bash
+npm version patch --no-git-tag-version   # 0.1.4 → 0.1.5
+# 现在去改 CHANGELOG.md，加一节 ## [0.1.5] - 日期
+git commit -am "chore: 0.1.5"            # -a 会把 CHANGELOG 一起提交
+git tag v0.1.5
+git push origin main
+git push origin v0.1.5
+```
+
+漏了 CHANGELOG 这一步，CI 会在打 tag 之后才失败，tag 已经推出去了，
+清理起来要走 §5 的流程。**先写 CHANGELOG 再打 tag。**
+
+### 8.3 为什么 CHANGELOG 要进发布包
+
+`package.json` 的 `files` 白名单里收录了 `CHANGELOG.md`，
+这样 npm 页面和 `node_modules/dsh-compound-engineering/CHANGELOG.md`
+都能看到改动历史 —— 用户不用跳 GitHub 就能判断这次升级值不值。
+改了白名单记得跑一次 `npm pack --dry-run` 确认文件数增加了。
+
+---
+
+## 9. 待办
 
 - [x] Trusted Publisher 跑通一次，状态从 `Pending validation` 转正（v0.1.3 首次全绿）
 - [ ] 把 `Publishing access` 改为 disallow bypass 2fa tokens
